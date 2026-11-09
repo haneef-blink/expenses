@@ -164,16 +164,20 @@ var lb=S.last?new Date(S.last).toLocaleDateString('th-TH'):'ยังไม่�
 return '<h2 style="margin-top:4px">สำรองข้อมูล</h2><div class="card"><div class="note">สำรองล่าสุด: '+lb+'</div><button class="btn p" data-act="share">แชร์/บันทึกไฟล์สำรอง</button><button class="btn" data-act="copy">คัดลอกข้อมูลสำรอง</button><button class="btn" data-act="csv">คัดลอกเป็น CSV (วางใน Excel/Sheets)</button><textarea class="fld" id="rest" placeholder="วางข้อมูลสำรองที่นี่เพื่อกู้คืน"></textarea><button class="btn" data-act="restore">กู้คืนข้อมูลจากที่วาง</button></div><h2>หมวดหมู่ที่เพิ่มเอง</h2><div class="card">'+cs+'<div style="display:flex;gap:6px;margin-top:10px"><input class="fld" id="ce" style="width:58px;margin:0;text-align:center" maxlength="4" placeholder="😀"><input class="fld" id="cn" style="margin:0" placeholder="ชื่อหมวด"><select class="fld" id="ct" style="width:84px;margin:0"><option value="out">จ่าย</option><option value="in">รับ</option></select></div><button class="btn" data-act="addcat">เพิ่มหมวด</button></div><h2>รายการประจำรายเดือน</h2><div class="card">'+rs+'</div><div class="note">ข้อมูลเก็บในเครื่องนี้เท่านั้น แนะนำให้สำรองเป็นประจำ</div>'}
 function nk(s){return String(s).toLowerCase().replace(/[^฀-๿a-z0-9]/g,'')}
 var MN={'ม.ค':1,'ก.พ':2,'มี.ค':3,'เม.ย':4,'พ.ค':5,'มิ.ย':6,'ก.ค':7,'ส.ค':8,'ก.ย':9,'ต.ค':10,'พ.ย':11,'ธ.ค':12};
+var MK='[\u0E38\u0E39\u0E31\u0E4D\u0E47-\u0E4C]*';
+var MR=new RegExp('(\\d{1,2})\\s*('+Object.keys(MN).sort(function(a,b){return b.length-a.length}).map(function(k){return k.split('').map(function(c){return c=='.'?'\\.':c}).join(MK)}).join('|')+')'+MK+'\\.?\\s*(\\d{2,4})');
 function parseSlip(t){
 var L=t.split('\n').map(function(x){return x.replace(/\s+/g,' ').trim()}).filter(Boolean),o={};
-var rf=t.match(/รหัสอ้างอิง[:\s]*([0-9]{10,})/);if(rf)o.ref=rf[1];
+var rf=t.match(/อ้างอิง[:\s]*([0-9]{10,})/)||t.match(/(?:^|\s)(2[0-9]{17})(?:\s|$)/m);if(rf)o.ref=rf[1];
 for(var i=0;i<L.length;i++){if(/ธรรมเนียม|fee/i.test(L[i]))continue;var m=L[i].match(/^฿?\s*([0-9][0-9,]*\.[0-9]{2})\s*(บาท)?$/);if(m){o.amt=parseFloat(m[1].replace(/,/g,''));break}}
 if(!o.amt){var a=t.replace(/ค่าธรรมเนียม\s*[0-9,.]+/g,'').match(/([0-9][0-9,]*\.[0-9]{2})/);if(a)o.amt=parseFloat(a[1].replace(/,/g,''))}
-var d=t.match(/(\d{1,2})\s*(ม\.ค|ก\.พ|มี\.ค|เม\.ย|พ\.ค|มิ\.ย|ก\.ค|ส\.ค|ก\.ย|ต\.ค|พ\.ย|ธ\.ค)\.?\s*(\d{2,4})/);
-if(d){var y=+d[3];y=y<100?y+2500:y;y=y>2400?y-543:y;o.date=y+'-'+String(MN[d[2]]).padStart(2,'0')+'-'+String(+d[1]).padStart(2,'0')}
+var d=t.match(MR);if(d&&!MN[d[2].replace(/[\u0E38\u0E39\u0E31\u0E4D\u0E47-\u0E4C]/g,'')])d=null;
+if(d){var y=+d[3];y=y<100?y+2500:y;y=y>2400?y-543:y;o.date=y+'-'+String(MN[d[2].replace(/[\u0E38\u0E39\u0E31\u0E4D\u0E47-\u0E4C]/g,'')]).padStart(2,'0')+'-'+String(+d[1]).padStart(2,'0')}
 var nm=L.filter(function(x){return /^[^ก-ฮA-Za-z]{0,3}\s*(นาย|นาง|นางสาว|น\.ส\.|ด\.ช\.|ด\.ญ\.)/.test(x)});
 var mi=-1;L.forEach(function(x,i){if(/^\(?\d{10,}\)?$/.test(x))mi=i});
-if(mi>0&&/[A-Za-zก-ฮ]/.test(L[mi-1])&&!/ธรรมเนียม/.test(L[mi-1]))o.who=L[mi-1];else if(nm.length>1)o.who=nm[1];
+if(mi>0){var pr=[];for(var j=mi-1;j>=0&&pr.length<3;j--){var ln=L[j];if(!/[A-Za-zก-ฮ]/.test(ln)||/XXX|ธรรมเนียม/.test(ln)||/^(ttb|tmb|scb|ktb|bbl|bay|gsb|baac|kbank|cimb|uob|lh|tisco|kkp)$/i.test(ln)||/^[^ก-ฮA-Za-z]{0,3}\s*(นาย|นาง|นางสาว|น\.ส\.)/.test(ln))break;pr.unshift(ln)}
+if(pr.length){o.who=pr.join(' ');var op=(o.who.match(/\(/g)||[]).length,cl=(o.who.match(/\)/g)||[]).length;if(op>cl)o.who+=')'}}
+if(!o.who&&nm.length>1)o.who=nm[1];
 if(o.who)o.who=o.who.replace(/^[^ก-ฮA-Za-z0-9]+/,'').trim();
 o.bill=/จ่ายบิล/.test(t);return o}
 var TP=null,W=null;
@@ -183,11 +187,11 @@ async function scan(f){try{say('กำลังโหลดตัวอ่าน
 if(!W){W=await Tesseract.createWorker('tha+eng',1,{logger:function(m){if(m.status=='recognizing text')say('กำลังอ่านสลิป '+Math.round(m.progress*100)+'%')}});await W.setParameters({tessedit_pageseg_mode:'6'})}
 var r=await W.recognize(f),o=parseSlip(r.data.text);
 if(o.ref&&S.tx.some(function(x){return x.ref==o.ref})){say('⚠️ สลิปนี้เคยบันทึกแล้ว');return}
-if(!o.amt){say('อ่านจำนวนเงินไม่ได้ ลองรูปที่ชัดขึ้น หรือกรอกเอง');return}
+if(!o.amt){say('อ่านจำนวนเงินไม่ได้ ข้อความที่อ่านได้: '+r.data.text.replace(/\s+/g,' ').slice(0,100));return}
 var who=o.who||'',nt=who?(o.bill?who:'โอนให้ '+who):'',g=nt&&S.map[nk(nt)];
 S.type='out';S.cat=(g&&CATS[g]&&OUTC.indexOf(g)>-1)?g:'other';
 S.ed={id:0,date:o.date||ds(NOW),amt:o.amt,note:nt,ref:o.ref};sheet();say('อ่านสลิปแล้ว ตรวจความถูกต้องก่อนกดบันทึก')}
-catch(e){say('อ่านสลิปไม่สำเร็จ (ต้องต่อเน็ตตอนอ่านครั้งแรก) กรอกเองได้')}}
+catch(e){say('อ่านสลิปไม่สำเร็จ ('+(e&&e.message||e)+') ต้องต่อเน็ตตอนอ่านครั้งแรก กรอกเองได้')}}
 var B=[];
 function bulkOpen(files){var fl=Array.prototype.slice.call(files);B=[];$('layer').innerHTML='<div class="sheet-bg" id="bbg"><div class="sheet"><div id="bprog">กำลังเตรียมตัวอ่านสลิป (ครั้งแรกใช้เวลาสักครู่)...</div></div></div>';bulkRun(fl)}
 async function bulkRun(fl){try{await loadT();if(!W){W=await Tesseract.createWorker('tha+eng',1,{logger:function(){}});await W.setParameters({tessedit_pageseg_mode:'6'})}
